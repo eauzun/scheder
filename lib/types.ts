@@ -7,5 +7,6 @@ export interface Task {
   title: string;
   diff: 1 | 2 | 3 | 4 | 5;
   done: boolean;
+  penaltyApplied?: boolean;
   createdAt: number;
 }

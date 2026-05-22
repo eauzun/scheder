@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { Task } from "@/lib/types";
 
-// In-memory fallback for local dev (Vercel KV used in production)
 let localTasks: Task[] = [];
 
 async function getTasks(): Promise<Task[]> {
