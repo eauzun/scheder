@@ -3,23 +3,26 @@ import { Task } from "@/lib/types";
 
 async function run() {
   const today = new Date().toISOString().split("T")[0];
-  let tasks: Task[];
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const { kv } = await import("@vercel/kv");
-    tasks = (await kv.get<Task[]>("tasks")) ?? [];
-    const topenalize = tasks.filter(t => t.date < today && !t.done && !t.penaltyApplied);
-    if (topenalize.length === 0) return { applied: 0 };
-    const updated = tasks.map(t =>
-      t.date < today && !t.done && !t.penaltyApplied ? { ...t, penaltyApplied: true } : t
-    );
-    await kv.set("tasks", updated);
-    const penalties = topenalize.reduce((acc, t) => {
-      acc[t.owner] = (acc[t.owner] ?? 0) + t.diff;
-      return acc;
-    }, {} as Record<string, number>);
-    return { applied: topenalize.length, penalties };
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return { applied: 0, message: "No Redis in local dev" };
   }
-  return { applied: 0, message: "No KV in local dev" };
+  const { Redis } = await import("@upstash/redis");
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN,
+  });
+  const tasks: Task[] = (await redis.get<Task[]>("tasks")) ?? [];
+  const topenalize = tasks.filter(t => t.date < today && !t.done && !t.penaltyApplied);
+  if (topenalize.length === 0) return { applied: 0 };
+  const updated = tasks.map(t =>
+    t.date < today && !t.done && !t.penaltyApplied ? { ...t, penaltyApplied: true } : t
+  );
+  await redis.set("tasks", updated);
+  const penalties = topenalize.reduce((acc, t) => {
+    acc[t.owner] = (acc[t.owner] ?? 0) + t.diff;
+    return acc;
+  }, {} as Record<string, number>);
+  return { applied: topenalize.length, penalties };
 }
 
 export async function GET() { return NextResponse.json(await run()); }

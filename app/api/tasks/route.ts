@@ -4,26 +4,32 @@ import { Task } from "@/lib/types";
 let localTasks: Task[] = [];
 
 async function getTasks(): Promise<Task[]> {
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const { kv } = await import("@vercel/kv");
-    const tasks = await kv.get<Task[]>("tasks");
-    return tasks ?? [];
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    const { Redis } = await import("@upstash/redis");
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    return (await redis.get<Task[]>("tasks")) ?? [];
   }
   return localTasks;
 }
 
 async function setTasks(tasks: Task[]): Promise<void> {
-  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
-    const { kv } = await import("@vercel/kv");
-    await kv.set("tasks", tasks);
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    const { Redis } = await import("@upstash/redis");
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    await redis.set("tasks", tasks);
     return;
   }
   localTasks = tasks;
 }
 
 export async function GET() {
-  const tasks = await getTasks();
-  return NextResponse.json(tasks);
+  return NextResponse.json(await getTasks());
 }
 
 export async function POST(req: Request) {
@@ -47,10 +53,7 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   const { id } = await req.json();
   let tasks = await getTasks();
-  if (id === "__RESET__") {
-    await setTasks([]);
-    return NextResponse.json({ ok: true });
-  }
+  if (id === "__RESET__") { await setTasks([]); return NextResponse.json({ ok: true }); }
   tasks = tasks.filter((t) => t.id !== id);
   await setTasks(tasks);
   return NextResponse.json({ ok: true });
