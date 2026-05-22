@@ -2,15 +2,10 @@ import { NextResponse } from "next/server";
 import { Task } from "@/lib/types";
 
 async function run() {
-  const today = new Date().toISOString().split("T")[0];
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    return { applied: 0, message: "No Redis in local dev" };
-  }
+  if (!process.env.KV_REST_API_URL) return { applied: 0, message: "No Redis in local dev" };
   const { Redis } = await import("@upstash/redis");
-  const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-  });
+  const redis = Redis.fromEnv();
+  const today = new Date().toISOString().split("T")[0];
   const tasks: Task[] = (await redis.get<Task[]>("tasks")) ?? [];
   const topenalize = tasks.filter(t => t.date < today && !t.done && !t.penaltyApplied);
   if (topenalize.length === 0) return { applied: 0 };

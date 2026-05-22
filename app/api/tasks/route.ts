@@ -3,29 +3,21 @@ import { Task } from "@/lib/types";
 
 let localTasks: Task[] = [];
 
+async function getRedis() {
+  const { Redis } = await import("@upstash/redis");
+  return Redis.fromEnv(); // otomatik KV_REST_API_URL + KV_REST_API_TOKEN okur
+}
+
 async function getTasks(): Promise<Task[]> {
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    const { Redis } = await import("@upstash/redis");
-    const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
-    return (await redis.get<Task[]>("tasks")) ?? [];
-  }
-  return localTasks;
+  if (!process.env.KV_REST_API_URL) return localTasks;
+  const redis = await getRedis();
+  return (await redis.get<Task[]>("tasks")) ?? [];
 }
 
 async function setTasks(tasks: Task[]): Promise<void> {
-  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    const { Redis } = await import("@upstash/redis");
-    const redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
-    await redis.set("tasks", tasks);
-    return;
-  }
-  localTasks = tasks;
+  if (!process.env.KV_REST_API_URL) { localTasks = tasks; return; }
+  const redis = await getRedis();
+  await redis.set("tasks", tasks);
 }
 
 export async function GET() {
